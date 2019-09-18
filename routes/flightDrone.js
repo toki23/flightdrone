@@ -9,7 +9,7 @@ const c = new ftp();
 var bebopName = "Bebop2-043314";
 var conectedFlag = 0;
 
-router.get("/:number", async function(req, res, next) {
+router.get("/:lat/:long", async function(req, res, next) {
     wifi.init({
         iface:null
     });
@@ -58,31 +58,32 @@ router.get("/:number", async function(req, res, next) {
                     c.on("ready", function() {
                         console.log("start: c.on(ready)")
                         console.log("ok");
-                       // await makeMavlink(1,2,3);
-                        c.put(
-                        "./routes/flightPlan.mavlink",
-                        "internal_000/flightplans/flightPlan.mavlink",
-                        function(err) {
-                            console.log("start: c.put");
-                            if (err) throw err;
-                            console.log("putfinish");
-                            c.end();
-                            setTimeout(function(){
-                                console.log("start: setTimeout");
-                                drone.connect(function() {
-                                    console.log("start: drone.connect");
-                                    drone.on("ready",function(data){
-                                        console.log("drone: ready");
-                                        drone.Mavlink.start(
-                                            "/data/ftp/internal_000/flightplans/flightPlan.mavlink",
-                                            0
-                                        );
-                                        drone.on("BatteryStateChanged",data =>{
-                                            console.log(data);
+                        drone.connect(async function() {
+                            const HomeGPS = await getHomeGPS();
+                            await makeMavlink(req.params.lat,req.params.long,HomeGPS.latitude,HomeGPS.longitude);
+                            c.put(
+                            "./routes/flightPlan.mavlink",
+                            "internal_000/flightplans/flightPlan.mavlink",
+                            function(err) {
+                                console.log("start: c.put");
+                                if (err) throw err;
+                                console.log("putfinish");
+                                c.end();
+                                setTimeout(function(){
+                                    console.log("start: setTimeout");
+                                        console.log("start: drone.connect");
+                                        drone.on("ready",function(data){
+                                            console.log("drone: ready");
+                                            drone.Mavlink.start(
+                                                "/data/ftp/internal_000/flightplans/flightPlan.mavlink",
+                                                0
+                                            );
+                                            drone.on("BatteryStateChanged",data =>{
+                                                console.log(data);
+                                            });
                                         });
-                                    });
-                                });
-                            },5000);
+                                },5000);
+                            });
                         });
                     });
                 },5000);
@@ -95,13 +96,33 @@ router.get("/:number", async function(req, res, next) {
 
 module.exports = router;
 
-// function makeMavlink(lat,long,alt){
-//     return new Promise((resolve,reject) =>{
-//         fs.writeFile("./routes/flightPlan.mavlink",(err)=>{
-//             if(err)console.log(err);
+function makeMavlink(lat,long,homelat,homelong){
+    return new Promise((resolve,reject) =>{
+        var fs = require('fs');
+        var Homelatitude = homelat;
+        var Homelongitude = homelong;
+        var Homealtitude = 30;
+        var Goallatitude = lat;
+        var Goallongitude = long;
+        var Goalaltitude = 30;
+        var line1 = "QGC WPL 120\n"
+        fs.writeFileSync('newfile.txt','QGC WPL 120\n0	0	3	178		0.000000	6.000000	-1.000000	0.000000	0.000000	0.000000	0.000000	1\n1	0	3	16		0.000000	5.000000	0.000000	0.000000	'+Homelatitude+'	'+Homelongitude+'	'+Homealtitude+'	1\n2	0	3	16		0.000000	5.000000	0.000000	0.000000	'+Goallatitude+'	'+Goallongitude+'	'+Goalaltitude+'	1\n3	0	3	2500		0.000000	30.000000	2073600.00	0.000000	0.000000	0.000000	0.000000	1\n4	0	3	18		0.000000	2.000000	0.000000	5.000000	'+Goallatitude+'	'+Goallongitude+'	'+Goalaltitude+'	1\n5	0	3	2501		0.000000	0.000000	0.000000	0.000000	0.000000	0.000000	0.000000	1\n6	0	3	16		0.000000	5.000000	0.000000	0.000000	'+Homelatitude+'	'+Homelongitude+'	'+Homealtitude+'	1\n' ,function(err){
+            //新規作成、上書き
+        });
+        fs.readFile('newfile.txt','utf8',function(err,data){
+            console.log(data);
+            //ログ出し
+        });
 
-//         });
+    });
+}
 
-
-//     });
-// }
+function getHomeGPS(){
+    return new Promise((resolve,reject)=>{
+        drone.on("PositionChanged",(data)=>{
+            if(data.latitude != 500){
+                resolve(data);
+            }
+        });
+    });
+}
